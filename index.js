@@ -3,7 +3,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const cors = require('cors');
 const fetch = require('node-fetch');
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -72,20 +72,19 @@ app.post('/message/sendWhatsappText/default', async (req, res) => {
   }
 });
 
-const configuration = new Configuration({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
 async function gerarRespostaIA(input) {
-  const completion = await openai.createChatCompletion({
+  const completion = await openai.chat.completions.create({
     model: 'gpt-3.5-turbo',
     messages: [
       { role: 'system', content: 'Você é um vendedor da D&F Joias. Ajude o cliente, conduza até a compra e, se ele quiser comprar, pergunte se deseja hoje ou em outra data.' },
       { role: 'user', content: input }
     ]
   });
-  return completion.data.choices[0].message.content;
+  return completion.choices[0].message.content;
 }
 
 app.post('/vendedor-ia', async (req, res) => {
