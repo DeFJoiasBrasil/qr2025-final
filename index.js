@@ -47,7 +47,17 @@ app.post('/message/sendWhatsappText/default', async (req, res) => {
   }
 
   try {
-    await client.sendMessage(`${number}@c.us`, text);
+    const chatId = `${number}@s.whatsapp.net`;
+
+    const chat = await client.getChatById(chatId).catch(async () => {
+      return await client.pupPage.evaluate(async (id) => {
+        const contact = await WWebJS.getContact(id);
+        return await contact.chat;
+      }, chatId);
+    });
+
+    await client.sendMessage(chat.id._serialized || chatId, text);
+
     console.log(`📤 Mensagem enviada para ${number}: ${text}`);
     res.status(200).json({ status: 'Mensagem enviada com sucesso', to: number, text });
   } catch (err) {
