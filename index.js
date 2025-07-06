@@ -1,9 +1,10 @@
-
 const express = require('express');
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const cors = require('cors');
 const fetch = require('node-fetch');
+const { Configuration, OpenAIApi } = require('openai');
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -71,28 +72,6 @@ app.post('/message/sendWhatsappText/default', async (req, res) => {
   }
 });
 
-app.post('/vendedor-ia', async (req, res) => {
-  const { number, content } = req.body;
-  if (!number || !content) {
-    return res.status(400).json({ error: 'Parâmetros ausentes' });
-  }
-
-  try {
-    const resposta = await gerarRespostaIA(content);
-
-    // Enviar resposta de texto
-    await client.sendMessage(`${number}`, resposta);
-
-    // Aqui você pode gerar e enviar áudio depois se quiser
-
-    return res.status(200).json({ status: 'Respondido pela IA' });
-  } catch (err) {
-    console.error('Erro IA:', err.message);
-    return res.status(500).json({ error: 'Erro ao responder com IA' });
-  }
-});
-
-const { Configuration, OpenAIApi } = require('openai');
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -102,12 +81,28 @@ async function gerarRespostaIA(input) {
   const completion = await openai.createChatCompletion({
     model: 'gpt-3.5-turbo',
     messages: [
-      { role: 'system', content: 'Você é um vendedor da D&F Joias. Ajude o cliente, conduza até a compra e se ele quiser comprar, pergunte se deseja hoje ou em outra data.' },
+      { role: 'system', content: 'Você é um vendedor da D&F Joias. Ajude o cliente, conduza até a compra e, se ele quiser comprar, pergunte se deseja hoje ou em outra data.' },
       { role: 'user', content: input }
     ]
   });
   return completion.data.choices[0].message.content;
 }
+
+app.post('/vendedor-ia', async (req, res) => {
+  const { number, content } = req.body;
+  if (!number || !content) {
+    return res.status(400).json({ error: 'Parâmetros ausentes' });
+  }
+
+  try {
+    const resposta = await gerarRespostaIA(content);
+    await client.sendMessage(`${number}`, resposta);
+    return res.status(200).json({ status: 'Respondido pela IA' });
+  } catch (err) {
+    console.error('Erro IA:', err.message);
+    return res.status(500).json({ error: 'Erro ao responder com IA' });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
