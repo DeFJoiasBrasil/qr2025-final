@@ -47,7 +47,7 @@ app.post('/message/sendWhatsappText/default', async (req, res) => {
   }
 
   try {
-    await client.sendMessage(`${number}@c.us`, text);
+    await client.sendMessage(`${number}@s.whatsapp.net`, text);
     console.log(`📤 Mensagem enviada para ${number}: ${text}`);
     res.status(200).json({ status: 'Mensagem enviada com sucesso', to: number, text });
   } catch (err) {
