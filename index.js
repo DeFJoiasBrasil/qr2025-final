@@ -1,14 +1,11 @@
+
 const express = require('express');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
-const cors = require('cors');
-const fetch = require('node-fetch');
-const OpenAI = require('openai');
-
+const { OpenAI } = require('openai');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-app.use(cors());
 app.use(express.json());
 app.set('view engine', 'ejs');
 app.set('views', __dirname + '/views');
@@ -23,12 +20,8 @@ const client = new Client({
   }
 });
 
-client.on('auth_failure', msg => {
-  console.error('❌ Falha na autenticação:', msg);
-});
-
-client.on('disconnected', reason => {
-  console.warn('⚠️ Cliente desconectado:', reason);
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 client.on('qr', async (qr) => {
@@ -41,18 +34,36 @@ client.on('ready', () => {
 });
 
 client.on('message', async (msg) => {
-  const number = msg.from;
-  const content = msg.body || '[áudio]';
+  const contact = await msg.getContact();
+  if (contact.isMe) return;
+
+  if (msg.hasMedia && msg.type === 'audio') {
+    await msg.reply("🎧 Recebi seu áudio! Vou responder em instantes...");
+    return;
+  }
+
+  const prompt = `
+Você é uma vendedora experiente, simpática e objetiva. Responda a esta mensagem como se estivesse atendendo pelo WhatsApp de uma loja de joias. Seja breve e mostre entusiasmo.
+
+Mensagem do cliente:
+"${msg.body}"
+`;
+
   try {
-    await fetch('https://qr2025.up.railway.app/vendedor-ia', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ number, content })
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: 'gpt-3.5-turbo',
     });
-  } catch (err) {
-    console.error('Erro ao chamar vendedor IA:', err.message);
+
+    const resposta = completion.choices[0].message.content.trim();
+    await msg.reply(resposta);
+    console.log(`🤖 Resposta enviada para ${contact.number.user}: ${resposta}`);
+  } catch (error) {
+    console.error('Erro ao gerar resposta da IA:', error.message);
   }
 });
+
+client.initialize();
 
 app.get('/', (req, res) => {
   if (qrCodeBase64) {
@@ -64,6 +75,7 @@ app.get('/', (req, res) => {
 
 app.post('/message/sendWhatsappText/default', async (req, res) => {
   const { number, text } = req.body;
+
   if (!number || !text) {
     return res.status(400).json({ error: 'Parâmetros ausentes: number ou text' });
   }
@@ -77,39 +89,6 @@ app.post('/message/sendWhatsappText/default', async (req, res) => {
     res.status(500).json({ error: 'Erro ao enviar mensagem', detail: err.message });
   }
 });
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-async function gerarRespostaIA(input) {
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-3.5-turbo',
-    messages: [
-      { role: 'system', content: 'Você é um vendedor da D&F Joias. Ajude o cliente, conduza até a compra e, se ele quiser comprar, pergunte se deseja hoje ou em outra data.' },
-      { role: 'user', content: input }
-    ]
-  });
-  return completion.choices[0].message.content;
-}
-
-app.post('/vendedor-ia', async (req, res) => {
-  const { number, content } = req.body;
-  if (!number || !content) {
-    return res.status(400).json({ error: 'Parâmetros ausentes' });
-  }
-
-  try {
-    const resposta = await gerarRespostaIA(content);
-    await client.sendMessage(`${number}`, resposta);
-    return res.status(200).json({ status: 'Respondido pela IA' });
-  } catch (err) {
-    console.error('Erro IA:', err.message);
-    return res.status(500).json({ error: 'Erro ao responder com IA' });
-  }
-});
-
-client.initialize();
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
