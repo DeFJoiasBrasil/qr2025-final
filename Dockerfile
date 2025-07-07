@@ -1,12 +1,8 @@
 FROM node:18-slim
-
 WORKDIR /app
-
 COPY package*.json ./
 RUN npm install
-
 COPY . .
-
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -32,5 +28,4 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     libglib2.0-0 \
     --no-install-recommends && apt-get clean && rm -rf /var/lib/apt/lists/*
-
 CMD ["npm", "start"]

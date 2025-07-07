@@ -23,6 +23,14 @@ const client = new Client({
   }
 });
 
+client.on('auth_failure', msg => {
+  console.error('❌ Falha na autenticação:', msg);
+});
+
+client.on('disconnected', reason => {
+  console.warn('⚠️ Cliente desconectado:', reason);
+});
+
 client.on('qr', async (qr) => {
   qrCodeBase64 = await qrcode.toDataURL(qr);
   console.log('✅ QR gerado. Acesse / para escanear.');
@@ -35,7 +43,6 @@ client.on('ready', () => {
 client.on('message', async (msg) => {
   const number = msg.from;
   const content = msg.body || '[áudio]';
-
   try {
     await fetch('https://qr2025.up.railway.app/vendedor-ia', {
       method: 'POST',
@@ -57,7 +64,6 @@ app.get('/', (req, res) => {
 
 app.post('/message/sendWhatsappText/default', async (req, res) => {
   const { number, text } = req.body;
-
   if (!number || !text) {
     return res.status(400).json({ error: 'Parâmetros ausentes: number ou text' });
   }
@@ -102,6 +108,8 @@ app.post('/vendedor-ia', async (req, res) => {
     return res.status(500).json({ error: 'Erro ao responder com IA' });
   }
 });
+
+client.initialize();
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
