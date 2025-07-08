@@ -1,22 +1,20 @@
 require('dotenv').config();
 const express = require('express');
-const qrcode = require('qrcode');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const transcribeAudio = require('./utils/transcribe');
+const qrcode = require('qrcode');
 const { OpenAI } = require('openai');
+const transcribeAudio = require('./utils/transcribe');
+const fs = require('fs');
 const path = require('path');
+const cors = require('cors');
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.use(express.json());
+app.use(cors());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const promptBase = \`
-Você é uma atendente virtual da D&F Joias, especializada em alianças feitas com moedas antigas. Seu trabalho é responder de forma clara, gentil e envolvente, oferecendo informações sobre promoções, formas de pagamento, prazos de entrega e quebra de objeções. Todas as alianças têm garantia permanente da cor, não desbotam nem enferrujam. Quando a cliente disser que quer comprar, você deve pedir o endereço por escrito e a localização, e avisar que o representante fará a entrega. Use sempre um tom acolhedor, objetivo e vendedor.
-\`;
 
 let qrCodeBase64 = null;
 
@@ -37,38 +35,49 @@ client.on('ready', () => {
   console.log('✅ WhatsApp conectado com sucesso!');
 });
 
-client.on('message', async (message) => {
-  const number = message.from;
-  const isAudio = message.hasMedia && message.type === 'audio';
-  const isText = message.type === 'chat';
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  let userMessage = '';
+const promptBase = `Você é um assistente de atendimento da D&F Joias.
+Seu papel é conversar com clientes interessados em comprar alianças feitas com moedas antigas.
+Essas alianças são de excelente qualidade, não desbotam, não enferrujam, têm o brilho semelhante ao do ouro e possuem garantia vitalícia da cor.
+A D&F Joias está há 11 anos no mercado e realiza entregas presenciais em todo o Brasil.
+O pagamento é feito na hora da entrega, podendo ser em dinheiro, pix ou cartão.
+Ao final da conversa, quando o cliente confirmar a compra ou desejar agendar uma data para receber, diga apenas “✅ Compra confirmada” e finalize.`;
 
+client.on('message', async (msg) => {
   try {
-    if (isAudio) {
-      const media = await message.downloadMedia();
-      if (media && media.mimetype.includes('audio')) {
-        const buffer = Buffer.from(media.data, 'base64');
-        userMessage = await transcribeAudio(buffer);
+    if (msg.body || msg.hasMedia) {
+      let userInput = msg.body;
+
+      if (msg.hasMedia) {
+        const media = await msg.downloadMedia();
+        if (media.mimetype.includes('audio')) {
+          const buffer = Buffer.from(media.data, 'base64');
+          const filePath = `./temp_${Date.now()}.ogg`;
+          fs.writeFileSync(filePath, buffer);
+          userInput = await transcribeAudio(filePath);
+          fs.unlinkSync(filePath);
+        }
       }
-    } else if (isText) {
-      userMessage = message.body;
+
+      const chatHistory = `${promptBase}
+Cliente: ${userInput}
+Atendente:`;
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: promptBase },
+          { role: 'user', content: userInput }
+        ]
+      });
+
+      const reply = response.choices[0].message.content;
+      await msg.reply(reply);
+      console.log(`🤖 Resposta enviada: ${reply}`);
     }
-
-    if (!userMessage) return;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: promptBase },
-        { role: 'user', content: userMessage }
-      ]
-    });
-
-    const resposta = completion.choices[0].message.content;
-    await client.sendMessage(number, resposta);
   } catch (err) {
-    console.error('❌ Erro ao processar mensagem:', err.message);
+    console.error('❌ Erro ao responder:', err.message);
   }
 });
 
