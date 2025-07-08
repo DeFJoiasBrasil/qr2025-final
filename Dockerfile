@@ -1,7 +1,9 @@
-# Base Node.js
 FROM node:18
 
-# Instala as dependências do sistema necessárias para o Chromium headless
+WORKDIR /app
+
+COPY . .
+
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -25,22 +27,10 @@ RUN apt-get update && apt-get install -y \
     libdrm2 \
     libgbm1 \
     libxshmfence1 \
-    libgconf-2-4 \
-    --no-install-recommends \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    --no-install-recommends && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Cria e usa o diretório de app
-WORKDIR /app
-
-# Copia os arquivos do projeto
-COPY . .
-
-# Instala as dependências do projeto
 RUN npm install
 
-# Expõe a porta que o app usará
-EXPOSE 8080
-
-# Inicia a aplicação
-CMD ["node", "index.js"]
+CMD ["npm", "start"]

@@ -1,33 +1,32 @@
-const express = require('express');
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode');
-const { OpenAI } = require('openai');
 require('dotenv').config();
+const express = require('express');
+const qrcode = require('qrcode');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const transcribeAudio = require('./utils/transcribe');
+const { OpenAI } = require('openai');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-const basePrompt = `
-Você é um vendedor treinado da D&F Joias. A empresa vende alianças feitas com moedas antigas, com garantia permanente da cor, pagas somente na entrega. Entregamos em domicílio em todo o Brasil, com representantes locais. Seu papel é conduzir o cliente até a decisão de compra, respondendo dúvidas sobre os produtos, promoções, qualidade, forma de pagamento e agendando a entrega.
-
-Quando o cliente quiser marcar a entrega, peça:
-• Endereço completo por escrito
-• Localização via WhatsApp
-
-Atenção: seja amigável, direto, confiante e atenda sempre com foco em fechamento.
-`;
-
 app.use(express.json());
 app.set('view engine', 'ejs');
-app.set('views', __dirname + '/views');
+app.set('views', path.join(__dirname, 'views'));
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const promptBase = \`
+Você é uma atendente virtual da D&F Joias, especializada em alianças feitas com moedas antigas. Seu trabalho é responder de forma clara, gentil e envolvente, oferecendo informações sobre promoções, formas de pagamento, prazos de entrega e quebra de objeções. Todas as alianças têm garantia permanente da cor, não desbotam nem enferrujam. Quando a cliente disser que quer comprar, você deve pedir o endereço por escrito e a localização, e avisar que o representante fará a entrega. Use sempre um tom acolhedor, objetivo e vendedor.
+\`;
 
 let qrCodeBase64 = null;
 
 const client = new Client({
   authStrategy: new LocalAuth(),
-  puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+  puppeteer: {
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  }
 });
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 client.on('qr', async (qr) => {
   qrCodeBase64 = await qrcode.toDataURL(qr);
@@ -38,28 +37,38 @@ client.on('ready', () => {
   console.log('✅ WhatsApp conectado com sucesso!');
 });
 
-client.on('message', async (msg) => {
-  const chat = await msg.getChat();
-  if (msg.fromMe || chat.isGroup) return;
+client.on('message', async (message) => {
+  const number = message.from;
+  const isAudio = message.hasMedia && message.type === 'audio';
+  const isText = message.type === 'chat';
+
+  let userMessage = '';
 
   try {
-    const userMsg = msg.body;
+    if (isAudio) {
+      const media = await message.downloadMedia();
+      if (media && media.mimetype.includes('audio')) {
+        const buffer = Buffer.from(media.data, 'base64');
+        userMessage = await transcribeAudio(buffer);
+      }
+    } else if (isText) {
+      userMessage = message.body;
+    }
 
-    const response = await openai.chat.completions.create({
+    if (!userMessage) return;
+
+    const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: basePrompt },
-        { role: 'user', content: userMsg }
-      ],
-      temperature: 0.7,
+        { role: 'system', content: promptBase },
+        { role: 'user', content: userMessage }
+      ]
     });
 
-    const reply = response.choices[0].message.content;
-    await msg.reply(reply);
-    console.log(`📩 IA respondeu para ${msg.from}: ${reply}`);
+    const resposta = completion.choices[0].message.content;
+    await client.sendMessage(number, resposta);
   } catch (err) {
-    console.error('❌ Erro ao responder com IA:', err.message);
-    await msg.reply('Desculpe, ocorreu um erro ao tentar responder sua mensagem.');
+    console.error('❌ Erro ao processar mensagem:', err.message);
   }
 });
 
