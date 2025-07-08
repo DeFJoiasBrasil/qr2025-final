@@ -1,9 +1,20 @@
 const express = require('express');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const { OpenAI } = require('openai');
+require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+const basePrompt = `
+Você é um vendedor treinado da D&F Joias. A empresa vende alianças feitas com moedas antigas, com garantia permanente da cor, pagas somente na entrega. Entregamos em domicílio em todo o Brasil, com representantes locais. Seu papel é conduzir o cliente até a decisão de compra, respondendo dúvidas sobre os produtos, promoções, qualidade, forma de pagamento e agendando a entrega.
+
+Quando o cliente quiser marcar a entrega, peça:
+• Endereço completo por escrito
+• Localização via WhatsApp
+
+Atenção: seja amigável, direto, confiante e atenda sempre com foco em fechamento.
+`;
 
 app.use(express.json());
 app.set('view engine', 'ejs');
@@ -13,15 +24,10 @@ let qrCodeBase64 = null;
 
 const client = new Client({
   authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  }
+  puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] },
 });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 client.on('qr', async (qr) => {
   qrCodeBase64 = await qrcode.toDataURL(qr);
@@ -33,32 +39,27 @@ client.on('ready', () => {
 });
 
 client.on('message', async (msg) => {
-  const contact = await msg.getContact();
-  if (contact.isMe) return;
-
-  if (msg.hasMedia && msg.type === 'audio') {
-    await msg.reply("🎧 Recebi seu áudio! Vou responder em instantes...");
-    return;
-  }
-
-  const prompt = `
-Você é uma vendedora experiente, simpática e objetiva. Responda a esta mensagem como se estivesse atendendo pelo WhatsApp de uma loja de joias. Seja breve e mostre entusiasmo.
-
-Mensagem do cliente:
-"${msg.body}"
-`;
+  const chat = await msg.getChat();
+  if (msg.fromMe || chat.isGroup) return;
 
   try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: 'user', content: prompt }],
-      model: 'gpt-3.5-turbo',
+    const userMsg = msg.body;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: basePrompt },
+        { role: 'user', content: userMsg }
+      ],
+      temperature: 0.7,
     });
 
-    const resposta = completion.choices[0].message.content.trim();
-    await msg.reply(resposta);
-    console.log(`🤖 Resposta enviada para ${contact.number.user}: ${resposta}`);
-  } catch (error) {
-    console.error('Erro ao gerar resposta da IA:', error.message);
+    const reply = response.choices[0].message.content;
+    await msg.reply(reply);
+    console.log(`📩 IA respondeu para ${msg.from}: ${reply}`);
+  } catch (err) {
+    console.error('❌ Erro ao responder com IA:', err.message);
+    await msg.reply('Desculpe, ocorreu um erro ao tentar responder sua mensagem.');
   }
 });
 
@@ -69,23 +70,6 @@ app.get('/', (req, res) => {
     res.render('qr', { qrCode: qrCodeBase64 });
   } else {
     res.send('QR ainda não gerado. Atualize em alguns segundos...');
-  }
-});
-
-app.post('/message/sendWhatsappText/default', async (req, res) => {
-  const { number, text } = req.body;
-
-  if (!number || !text) {
-    return res.status(400).json({ error: 'Parâmetros ausentes: number ou text' });
-  }
-
-  try {
-    await client.sendMessage(`${number}@c.us`, text);
-    console.log(`📤 Mensagem enviada para ${number}: ${text}`);
-    res.status(200).json({ status: 'Mensagem enviada com sucesso', to: number, text });
-  } catch (err) {
-    console.error('❌ Erro ao enviar mensagem:', err.message);
-    res.status(500).json({ error: 'Erro ao enviar mensagem', detail: err.message });
   }
 });
 
