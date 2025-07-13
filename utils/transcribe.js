@@ -1,25 +1,28 @@
-const { OpenAI } = require("openai");
-const axios = require("axios");
 const fs = require("fs");
-const path = require("path");
+const { OpenAI } = require("openai");
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+require("dotenv").config();
 
-async function transcribeAudio(audioUrl) {
-  const filePath = path.resolve(__dirname, "temp.ogg");
-  const response = await axios.get(audioUrl, { responseType: "stream" });
-  const writer = fs.createWriteStream(filePath);
-  response.data.pipe(writer);
+async function transcribeAudio(client, message) {
+  const media = await client.decryptFile(message);
+  const filePath = `/tmp/${message.id}.ogg`;
+  fs.writeFileSync(filePath, media);
 
-  await new Promise(resolve => writer.on("finish", resolve));
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  const transcript = await openai.audio.transcriptions.create({
-    file: fs.createReadStream(filePath),
-    model: "whisper-1"
-  });
-
-  fs.unlinkSync(filePath);
-  return transcript.text;
+  try {
+    const resp = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(filePath),
+      model: "whisper-1",
+      response_format: "text",
+    });
+    return resp;
+  } catch (err) {
+    console.error("Erro ao transcrever áudio:", err);
+    return null;
+  } finally {
+    fs.unlinkSync(filePath);
+  }
 }
 
 module.exports = { transcribeAudio };
