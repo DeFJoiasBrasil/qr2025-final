@@ -1,6 +1,6 @@
 FROM node:18-slim
 
-# Instala dependências do sistema para Chromium
+# Instala dependências do sistema para o Chromium
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -31,21 +31,23 @@ RUN apt-get update && apt-get install -y \
     libxfixes3 \
     libxrandr2 \
     libxrender1 \
+    libdrm2 \
+    libgbm1 \
     xdg-utils \
     --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
-# Define diretório de trabalho
+# Cria diretório de trabalho
 WORKDIR /app
 
-# Copia arquivos
+# Copia todos os arquivos
 COPY . .
 
 # Instala dependências do Node.js
 RUN npm install
 
-# Expõe porta
+# Expõe a porta do servidor
 EXPOSE 8080
 
-# Comando de start
+# Inicia a aplicação
 CMD ["npm", "start"]
