@@ -1,6 +1,6 @@
 const { create } = require('@open-wa/wa-automate');
 const express = require('express');
-const qrcode = require('qrcode-terminal');
+const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const { transcribeAudio } = require('./utils/transcribe');
@@ -10,7 +10,6 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 let clientInstance;
-let qrImageData = null; // variável global para armazenar o QR Code
 
 const promptBase = `
 Você é um atendente de vendas da D&F Joias, especialista em alianças feitas com ligas semelhantes às de moedas antigas. 
@@ -26,53 +25,65 @@ Informações importantes:
 `;
 
 create({
-    qrTimeout: 0,
-    authTimeout: 0,
-    headless: true,
-    useChrome: false,
-    popup: true,
-    multiDevice: true,
-    qrCallback: (base64Qr, asciiQR) => {
-        qrcode.generate(asciiQR, { small: true }); // terminal
-        qrImageData = base64Qr; // navegador
-    }
+  qrTimeout: 0,
+  authTimeout: 0,
+  headless: true,
+  useChrome: false,
+  popup: true,
+  multiDevice: true
 }).then(client => {
-    clientInstance = client;
+  clientInstance = client;
 
-    client.onMessage(async message => {
-        if (message.body || message.mimetype) {
-            let prompt = "";
-            if (message.mimetype === "audio/ogg; codecs=opus") {
-                const mediaData = await client.decryptFile(message);
-                const filePath = `./audio-${message.id}.ogg`;
-                fs.writeFileSync(filePath, mediaData);
-                const text = await transcribeAudio(filePath);
-                fs.unlinkSync(filePath);
-                prompt = text;
-            } else {
-                prompt = message.body;
-            }
+  client.onStateChanged(state => {
+    console.log('Estado do cliente:', state);
+  });
 
-            const resposta = await generateResponse(`${promptBase}
+  client.onMessage(async message => {
+    if (message.body || message.mimetype) {
+      let prompt = '';
+      if (message.mimetype === 'audio/ogg; codecs=opus') {
+        const mediaData = await client.decryptFile(message);
+        const filePath = `./audio-${message.id}.ogg`;
+        fs.writeFileSync(filePath, mediaData);
+        const text = await transcribeAudio(filePath);
+        fs.unlinkSync(filePath);
+        prompt = text;
+      } else {
+        prompt = message.body;
+      }
+
+      const resposta = await generateResponse(`${promptBase}
 Cliente: ${prompt}
 Atendente:`);
-            client.sendText(message.from, resposta);
-        }
-    });
+      client.sendText(message.from, resposta);
+    }
+  });
 }).catch(err => console.error(err));
 
-// Exibe QR Code no navegador
+// Exibir QR Code via Express
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Gera o QR Code quando requisitado
+create({
+  qrTimeout: 0,
+  authTimeout: 0,
+  headless: true,
+  useChrome: false,
+  popup: true,
+  multiDevice: true,
+  onQR: async (base64Qrimg) => {
+    const imagePath = path.join(__dirname, 'public', 'qr.png');
+    await qrcode.toFile(imagePath, base64Qrimg.split(',')[1]);
+    console.log('✅ QR Code salvo como imagem.');
+  }
+}).catch(console.error);
 
 app.get('/', (req, res) => {
-    if (qrImageData) {
-        res.render('qr', { qrCode: qrImageData });
-    } else {
-        res.send('Aguardando geração do QR Code...');
-    }
+  res.render('qr', { imageUrl: '/qr.png' });
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
