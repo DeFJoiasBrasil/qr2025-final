@@ -1,1 +1,15 @@
-// Conteúdo simulado de qr.ejs
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>QR Code do WhatsApp</title>
+  </head>
+  <body>
+    <h1>Escaneie o QR Code</h1>
+    <% if (qrCode) { %>
+      <img src="<%= qrCode %>" alt="QR Code" />
+    <% } else { %>
+      <p>QR Code não gerado ainda. Tente novamente em alguns segundos.</p>
+    <% } %>
+  </body>
+</html>
