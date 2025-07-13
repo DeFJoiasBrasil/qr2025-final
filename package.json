@@ -1,17 +1,17 @@
+
 {
   "name": "evolution-api-ia",
   "version": "1.0.0",
-  "description": "Atendente IA para responder apenas áudios no WhatsApp",
+  "description": "Atendente IA da D&F Joias que responde por texto com base em mensagens de texto e áudio.",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "@evolutionapi/evolution-node": "^1.0.0",
-    "axios": "^1.6.8",
-    "dotenv": "^16.3.1",
-    "express": "^4.19.2",
-    "fs": "^0.0.1-security",
-    "openai": "^4.25.0"
+    "axios": "^1.6.7",
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
   }
 }
