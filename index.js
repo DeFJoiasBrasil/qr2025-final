@@ -26,3 +26,8 @@ app.post("/webhook", async (req, res) => {
 app.listen(8080, () => {
   console.log("🚀 Servidor de IA (áudio) rodando na porta 8080");
 });
+
+client.on('qr', (qr) => {
+  console.log("✅ QR gerado. Acesse / para escanear.");
+  qrcode.generate(qr, { small: true });
+});
