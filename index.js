@@ -1,21 +1,40 @@
-import express from "express";
-import { transcribeAudio } from "./utils/transcribe.js";
-import { createBot } from "./utils/bot.js";
-import dotenv from "dotenv";
-
-dotenv.config();
-
+const express = require('express');
+const qrcode = require('qrcode-terminal');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const app = express();
-const port = process.env.PORT || 8080;
 
-app.use(express.json());
+app.set('view engine', 'ejs');
+app.set('views', './views');
 
-app.get("/", (req, res) => {
-  res.send("🤖 Servidor da IA rodando com sucesso!");
+let currentQr = null;
+
+const client = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: {
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  }
 });
 
-createBot(); // inicializa o bot WhatsApp
-
-app.listen(port, () => {
-  console.log(`🚀 Servidor rodando na porta ${port}`);
+client.on('qr', (qr) => {
+  currentQr = qr;
+  qrcode.generate(qr, { small: true });
+  console.log('✅ QR gerado. Acesse / para escanear.');
 });
+
+app.get('/', (req, res) => {
+  if (currentQr) {
+    const imageUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(currentQr)}&size=300x300`;
+    res.render('qr', { qr: imageUrl });
+  } else {
+    res.send('QR ainda não gerado. Atualize em alguns segundos...');
+  }
+});
+
+client.on('ready', () => {
+  console.log('✅ WhatsApp conectado com sucesso!');
+});
+
+client.initialize();
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`🚀 Servidor rodando na porta ${PORT}`));
