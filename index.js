@@ -1,41 +1,38 @@
-const express = require('express');
-const qrcode = require('qrcode-terminal');
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const express = require('express');
 const app = express();
 const port = 8080;
 
-app.set('view engine', 'ejs');
-app.set('views', './views');
-
-let qrCodeImg = null;
-
 const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  },
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    }
 });
 
-client.on('qr', async (qr) => {
-  qrcode.generate(qr, { small: true });
-  const qrDataUrl = await require('qrcode').toDataURL(qr);
-  qrCodeImg = qrDataUrl;
-  console.log('⚠️ Escaneie o QR Code ou acesse http://localhost:8080 para visualizar no navegador.');
-});
-
-app.get('/', (req, res) => {
-  if (!qrCodeImg) {
-    return res.send('QR Code ainda não gerado, aguarde...');
-  }
-  res.render('qr', { qr: qrCodeImg });
+client.on('qr', (qr) => {
+    console.log('QR Code recebido');
+    qrcode.generate(qr, { small: true });
 });
 
 client.on('ready', () => {
-  console.log('✅ WhatsApp conectado com sucesso!');
+    console.log('✅ WhatsApp conectado com sucesso!');
+});
+
+client.on('message', async msg => {
+    if (msg.body && !msg.fromMe) {
+        await msg.reply('🤖 Olá! Recebemos sua mensagem e vamos te atender em instantes.');
+    }
 });
 
 client.initialize();
 
+app.get('/', (req, res) => {
+    res.send('🤖 Servidor rodando e WhatsApp conectado!');
+});
+
 app.listen(port, () => {
-  console.log(`🚀 Servidor rodando na porta ${port}`);
+    console.log(`🚀 Servidor rodando na porta ${port}`);
 });
