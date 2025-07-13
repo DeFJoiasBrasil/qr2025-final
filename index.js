@@ -1,96 +1,71 @@
-require('dotenv').config();
-const express = require('express');
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode');
-const { OpenAI } = require('openai');
-const transcribeAudio = require('./utils/transcribe');
-const fs = require('fs');
-const path = require('path');
-const cors = require('cors');
+// index.js
+require("dotenv").config();
+const express = require("express");
+const bodyParser = require("body-parser");
+const { transcribeAudio } = require("./utils/transcribe");
+const axios = require("axios");
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+app.use(bodyParser.json({ limit: "50mb" }));
+app.use(bodyParser.urlencoded({ extended: true, limit: "50mb" }));
 
-app.use(express.json());
-app.use(cors());
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+const promptBase = `Você é um atendente virtual da D&F Joias, uma empresa especializada em alianças feitas com ligas semelhantes às de moedas antigas. Siga rigorosamente as diretrizes abaixo ao responder clientes:
+- Seja sempre amistoso, persuasivo e gentil. Use emojis quando necessário.
+- NUNCA diga que entregamos em todo o Brasil.
+- Quando o cliente perguntar sobre entrega, SEMPRE pergunte antes o nome da cidade e do bairro para verificar a disponibilidade.
+- Se o cliente não souber a medida, diga que levamos todos os tamanhos e modelos do catálogo para que ele experimente na hora e escolha.
+- Só fale da caixinha se o cliente perguntar. Nesse caso, diga que o representante tem para vender.
+- NÃO afirme que temos muitos modelos. Trabalhamos apenas com os que estão no catálogo enviado ao cliente.
+- Diga que as alianças têm o mesmo tom e brilho do ouro, não desbotam, não descascam e não enferrujam.
+- Se o cliente disser que quer comprar hoje, destaque isso na resposta.
+- Se o cliente disser que quer comprar depois, registre a data.
 
-let qrCodeBase64 = null;
+Agora responda com base no seguinte contexto de conversa do cliente:`;
 
-const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  }
-});
-
-client.on('qr', async (qr) => {
-  qrCodeBase64 = await qrcode.toDataURL(qr);
-  console.log('✅ QR gerado. Acesse / para escanear.');
-});
-
-client.on('ready', () => {
-  console.log('✅ WhatsApp conectado com sucesso!');
-});
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const promptBase = `Você é um assistente de atendimento da D&F Joias.
-Seu papel é conversar com clientes interessados em comprar alianças feitas com moedas antigas.
-Essas alianças são de excelente qualidade, não desbotam, não enferrujam, têm o brilho semelhante ao do ouro e possuem garantia vitalícia da cor.
-A D&F Joias está há 11 anos no mercado e realiza entregas presenciais em todo o Brasil.
-O pagamento é feito na hora da entrega, podendo ser em dinheiro, pix ou cartão.
-Ao final da conversa, quando o cliente confirmar a compra ou desejar agendar uma data para receber, diga apenas “✅ Compra confirmada” e finalize.`;
-
-client.on('message', async (msg) => {
+// Endpoint que recebe mensagens do Evolution API
+app.post("/webhook", async (req, res) => {
   try {
-    if (msg.body || msg.hasMedia) {
-      let userInput = msg.body;
+    const { text, audio, phone } = req.body;
 
-      if (msg.hasMedia) {
-        const media = await msg.downloadMedia();
-        if (media.mimetype.includes('audio')) {
-          const buffer = Buffer.from(media.data, 'base64');
-          const filePath = `./temp_${Date.now()}.ogg`;
-          fs.writeFileSync(filePath, buffer);
-          userInput = await transcribeAudio(filePath);
-          fs.unlinkSync(filePath);
-        }
-      }
+    let input = text || "";
 
-      const chatHistory = `${promptBase}
-Cliente: ${userInput}
-Atendente:`;
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: promptBase },
-          { role: 'user', content: userInput }
-        ]
-      });
-
-      const reply = response.choices[0].message.content;
-      await msg.reply(reply);
-      console.log(`🤖 Resposta enviada: ${reply}`);
+    if (audio) {
+      const transcript = await transcribeAudio(audio);
+      input = transcript || "Não consegui entender o áudio 😔";
     }
-  } catch (err) {
-    console.error('❌ Erro ao responder:', err.message);
+
+    const fullPrompt = `${promptBase}
+"${input}"`;
+
+    const completion = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model: "gpt-4o",
+        messages: [{ role: "user", content: fullPrompt }],
+        temperature: 0.5,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+      }
+    );
+
+    const response = completion.data.choices[0].message.content;
+
+    await axios.post(`${process.env.EVOLUTION_API_URL}/sendMessage`, {
+      number: phone,
+      text: response,
+    });
+
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error("Erro ao responder cliente:", error.message);
+    return res.sendStatus(500);
   }
 });
 
-client.initialize();
-
-app.get('/', (req, res) => {
-  if (qrCodeBase64) {
-    res.render('qr', { qrCode: qrCodeBase64 });
-  } else {
-    res.send('QR ainda não gerado. Atualize em alguns segundos...');
-  }
-});
-
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
