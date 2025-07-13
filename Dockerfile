@@ -1,5 +1,7 @@
 FROM node:18-slim
 
+WORKDIR /app
+
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -23,11 +25,13 @@ RUN apt-get update && apt-get install -y \
     libdrm2 \
     libgbm1 \
     libxshmfence1 \
-    libglib2.0-0 \
     --no-install-recommends && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
 COPY . .
+
 RUN npm install
+
+EXPOSE 8080
+
 CMD ["npm", "start"]
