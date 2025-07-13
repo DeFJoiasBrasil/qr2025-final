@@ -1,19 +1,9 @@
-const { OpenAI } = require("openai");
-const fs = require("fs");
-const path = require("path");
+import 'dotenv/config';
+import { OpenAI } from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-async function transcribeAudio(filePath) {
-  const audioStream = fs.createReadStream(filePath);
-  const transcription = await openai.audio.transcriptions.create({
-    file: audioStream,
-    model: "whisper-1"
-  });
-
-  return transcription.text;
+export async function transcribeAudio(filePath) {
+  // Simulação de transcrição
+  return "Transcrição simulada do áudio.";
 }
-
-module.exports = { transcribeAudio };
