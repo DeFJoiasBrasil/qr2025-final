@@ -1,17 +1,49 @@
-# Imagem base oficial do Puppeteer com Chrome e Node.js
-FROM ghcr.io/puppeteer/puppeteer:latest
+# Imagem base do Node.js
+FROM node:18-slim
 
 # Define diretório de trabalho
 WORKDIR /app
 
-# Copia os arquivos do projeto
-COPY . .
+# Copia os arquivos package.json e package-lock.json
+COPY package*.json ./
 
-# Instala as dependências
+# Instala dependências da aplicação
 RUN npm install
 
-# Expõe a porta do Express
+# Instala bibliotecas necessárias para Puppeteer (headless Chrome)
+RUN apt-get update && apt-get install -y \
+  wget \
+  ca-certificates \
+  fonts-liberation \
+  libappindicator3-1 \
+  libasound2 \
+  libatk-bridge2.0-0 \
+  libatk1.0-0 \
+  libcups2 \
+  libdbus-1-3 \
+  libgdk-pixbuf2.0-0 \
+  libnspr4 \
+  libnss3 \
+  libx11-xcb1 \
+  libxcomposite1 \
+  libxdamage1 \
+  libxrandr2 \
+  libxss1 \
+  libxtst6 \
+  libdrm2 \
+  libgbm1 \
+  libxshmfence1 \
+  libgobject-2.0-0 \
+  libglu1-mesa \
+  --no-install-recommends && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
+
+# Copia o restante da aplicação
+COPY . .
+
+# Expõe a porta usada pela aplicação
 EXPOSE 8080
 
-# Inicia a aplicação
+# Comando para iniciar a aplicação
 CMD ["npm", "start"]
