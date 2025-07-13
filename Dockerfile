@@ -1,13 +1,6 @@
 FROM node:18-slim
 
-WORKDIR /app
-
-COPY package*.json ./
-
-RUN npm install
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     ca-certificates \
     fonts-liberation \
@@ -31,10 +24,12 @@ RUN apt-get update && \
     libgbm1 \
     libxshmfence1 \
     libgobject-2.0-0 \
+    --no-install-recommends \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
 COPY . .
-
+RUN npm install
 EXPOSE 8080
-
-CMD ["node", "index.js"]
+CMD ["npm", "start"]
