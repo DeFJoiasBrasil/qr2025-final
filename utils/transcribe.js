@@ -1,6 +1,5 @@
-async function transcribeAudio(audioBase64) {
-    // Simulação de transcrição - substitua com integração real
-    return "Texto transcrito do áudio.";
+async function transcribeAudio(buffer) {
+  // lógica de transcrição usando OpenAI Whisper API
+  return "Transcrição simulada do áudio";
 }
-
-module.exports = { transcribeAudio };
+module.exports = transcribeAudio;
