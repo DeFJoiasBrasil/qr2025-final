@@ -1,11 +1,45 @@
+# Base mais leve com suporte a Puppeteer
 FROM node:18-slim
 
+# Instala dependências do Chromium
+RUN apt-get update && apt-get install -y \
+    wget \
+    ca-certificates \
+    fonts-liberation \
+    libappindicator1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libgdk-pixbuf2.0-0 \
+    libnspr4 \
+    libnss3 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libxss1 \
+    libxtst6 \
+    libdrm2 \
+    libgbm1 \
+    libxshmfence1 \
+    libgobject-2.0-0 \
+    xdg-utils \
+    --no-install-recommends && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Cria diretório do app
 WORKDIR /app
 
+# Copia tudo
 COPY . .
 
+# Instala as dependências do projeto
 RUN npm install
 
+# Porta exposta
 EXPOSE 8080
 
-CMD ["npm", "start"]
+# Início do app
+CMD ["node", "index.js"]
