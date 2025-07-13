@@ -1,89 +1,55 @@
-const { create } = require('@open-wa/wa-automate');
+require('dotenv').config();
 const express = require('express');
-const qrcode = require('qrcode');
-const path = require('path');
-const fs = require('fs');
 const { transcribeAudio } = require('./utils/transcribe');
-const { generateResponse } = require('./utils/openai');
+const { createOpenAI } = require('openai');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+app.use(express.json());
 
-let clientInstance;
+const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const promptBase = `
-Você é um atendente de vendas da D&F Joias, especialista em alianças feitas com ligas semelhantes às de moedas antigas. 
-Seu objetivo é conduzir o cliente com empatia, clareza e objetividade até o fechamento da venda.
-Informações importantes:
-- Você só deve falar sobre os modelos que estão no catálogo enviado.
-- As alianças não desbotam, não enferrujam e não descascam.
-- O atendimento é presencial nas cidades onde temos representantes, e por Correios nas demais.
-- Não mencione entrega nacional. Sempre pergunte o bairro e cidade antes de falar de entrega.
-- Se o cliente não souber a numeração, diga que levamos todos os tamanhos.
-- A caixinha é vendida separadamente. Só mencione se o cliente perguntar.
-- Fale de forma amigável e gentil, usando emojis quando apropriado.
+Você é um atendente virtual da D&F Joias, especialista em responder com empatia e foco em vendas. 
+Baseie-se nas informações abaixo para responder de forma persuasiva e clara.
+
+- Vendemos alianças feitas com moedas antigas, com o mesmo brilho e tom do ouro.
+- As alianças não desbotam, não descascam e não enferrujam.
+- Temos todos os tamanhos prontos para entrega.
+- Entregamos presencialmente em algumas cidades, e por Correios nas demais.
+- Nunca diga que entregamos em todo o Brasil. Pergunte sempre a cidade e o bairro.
+- Se o cliente perguntar sobre medidas, diga que levamos todos os tamanhos.
+- Garantia permanente da cor.
+- A caixa é vendida separadamente e deve ser mencionada apenas se o cliente perguntar.
+
+Fale com leveza, simpatia, segurança e sempre conduza o cliente até a decisão de compra.
+Use emojis quando necessário. Responda como se fosse humano.
 `;
 
-create({
-  qrTimeout: 0,
-  authTimeout: 0,
-  headless: true,
-  useChrome: false,
-  popup: true,
-  multiDevice: true
-}).then(client => {
-  clientInstance = client;
+app.post('/webhook', async (req, res) => {
+    const { message, isAudio } = req.body;
 
-  client.onStateChanged(state => {
-    console.log('Estado do cliente:', state);
-  });
+    try {
+        let userMessage = message;
 
-  client.onMessage(async message => {
-    if (message.body || message.mimetype) {
-      let prompt = '';
-      if (message.mimetype === 'audio/ogg; codecs=opus') {
-        const mediaData = await client.decryptFile(message);
-        const filePath = `./audio-${message.id}.ogg`;
-        fs.writeFileSync(filePath, mediaData);
-        const text = await transcribeAudio(filePath);
-        fs.unlinkSync(filePath);
-        prompt = text;
-      } else {
-        prompt = message.body;
-      }
+        if (isAudio) {
+            userMessage = await transcribeAudio(message); // URL do áudio
+        }
 
-      const resposta = await generateResponse(`${promptBase}
-Cliente: ${prompt}
-Atendente:`);
-      client.sendText(message.from, resposta);
+        const response = await openai.chat.completions.create({
+            messages: [
+                { role: "system", content: promptBase },
+                { role: "user", content: userMessage }
+            ],
+            model: "gpt-4o"
+        });
+
+        const aiReply = response.choices[0].message.content;
+        res.json({ reply: aiReply });
+    } catch (error) {
+        console.error("Erro no atendimento:", error.message);
+        res.status(500).json({ error: "Erro ao processar mensagem" });
     }
-  });
-}).catch(err => console.error(err));
-
-// Exibir QR Code via Express
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Gera o QR Code quando requisitado
-create({
-  qrTimeout: 0,
-  authTimeout: 0,
-  headless: true,
-  useChrome: false,
-  popup: true,
-  multiDevice: true,
-  onQR: async (base64Qrimg) => {
-    const imagePath = path.join(__dirname, 'public', 'qr.png');
-    await qrcode.toFile(imagePath, base64Qrimg.split(',')[1]);
-    console.log('✅ QR Code salvo como imagem.');
-  }
-}).catch(console.error);
-
-app.get('/', (req, res) => {
-  res.render('qr', { imageUrl: '/qr.png' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-});
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`🚀 Servidor rodando na porta ${PORT}`));
