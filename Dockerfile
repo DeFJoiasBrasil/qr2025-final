@@ -1,6 +1,6 @@
-FROM node:18-slim
+FROM node:18-bullseye
 
-# Instala todas as dependências necessárias para o Chromium funcionar
+# Instalar dependências necessárias ao Puppeteer
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -25,15 +25,13 @@ RUN apt-get update && apt-get install -y \
     libgbm1 \
     libxshmfence1 \
     libxkbcommon0 \
-    libgobject-2.0-0 \
+    libgconf-2-4 \
+    libgtk-3-0 \
     --no-install-recommends && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
 COPY . .
-
 RUN npm install
-
-CMD ["npm", "start"]
+CMD ["node", "index.js"]
