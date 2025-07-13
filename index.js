@@ -1,3 +1,4 @@
+
 const { create } = require('@open-wa/wa-automate');
 const express = require('express');
 const qrcode = require('qrcode-terminal');
@@ -29,10 +30,14 @@ create({
     authTimeout: 0,
     headless: true,
     useChrome: false,
-    popup: true,
+    qrPopUpOnly: false,
     multiDevice: true
 }).then(client => {
     clientInstance = client;
+
+    client.on('qr', qrCode => {
+        qrcode.generate(qrCode, { small: true });
+    });
 
     client.onMessage(async message => {
         if (message.body || message.mimetype) {
@@ -54,9 +59,12 @@ Atendente:`);
             client.sendText(message.from, resposta);
         }
     });
+
+    client.onStateChanged(state => {
+        console.log('[Estado do cliente]:', state);
+    });
 }).catch(err => console.error(err));
 
-// Exibe QR Code no navegador
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
