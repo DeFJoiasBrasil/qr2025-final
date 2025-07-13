@@ -1,5 +1,6 @@
 FROM node:18-slim
 
+# Instala todas as dependências necessárias para o Chromium funcionar
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -19,16 +20,20 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     libxss1 \
     libxtst6 \
+    xdg-utils \
     libdrm2 \
     libgbm1 \
     libxshmfence1 \
-    libglib2.0-0 \
-    xdg-utils \
+    libxkbcommon0 \
+    libgobject-2.0-0 \
     --no-install-recommends && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
 COPY . .
+
 RUN npm install
 
 CMD ["npm", "start"]
