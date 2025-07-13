@@ -1,18 +1,1 @@
-{
-  "name": "evolution-api-ia",
-  "version": "1.0.0",
-  "description": "Atendente IA para WhatsApp com áudio e texto",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "ejs": "^3.1.8",
-    "qrcode": "^1.5.1",
-    "whatsapp-web.js": "^1.22.1",
-    "dotenv": "^16.0.3",
-    "openai": "^4.14.0",
-    "socket.io": "^4.7.2"
-  }
-}
+// Conteúdo do package.json corrigido será adicionado pelo usuário
