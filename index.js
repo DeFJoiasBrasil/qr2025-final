@@ -1,4 +1,3 @@
-
 const { create } = require('@open-wa/wa-automate');
 const express = require('express');
 const qrcode = require('qrcode-terminal');
@@ -11,6 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 let clientInstance;
+let qrImageData = null; // variável global para armazenar o QR Code
 
 const promptBase = `
 Você é um atendente de vendas da D&F Joias, especialista em alianças feitas com ligas semelhantes às de moedas antigas. 
@@ -30,14 +30,14 @@ create({
     authTimeout: 0,
     headless: true,
     useChrome: false,
-    qrPopUpOnly: false,
-    multiDevice: true
+    popup: true,
+    multiDevice: true,
+    qrCallback: (base64Qr, asciiQR) => {
+        qrcode.generate(asciiQR, { small: true }); // terminal
+        qrImageData = base64Qr; // navegador
+    }
 }).then(client => {
     clientInstance = client;
-
-    client.on('qr', qrCode => {
-        qrcode.generate(qrCode, { small: true });
-    });
 
     client.onMessage(async message => {
         if (message.body || message.mimetype) {
@@ -59,17 +59,18 @@ Atendente:`);
             client.sendText(message.from, resposta);
         }
     });
-
-    client.onStateChanged(state => {
-        console.log('[Estado do cliente]:', state);
-    });
 }).catch(err => console.error(err));
 
+// Exibe QR Code no navegador
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 app.get('/', (req, res) => {
-    res.render('qr', { message: 'Escaneie o QR Code no terminal para conectar seu WhatsApp.' });
+    if (qrImageData) {
+        res.render('qr', { qrCode: qrImageData });
+    } else {
+        res.send('Aguardando geração do QR Code...');
+    }
 });
 
 app.listen(PORT, () => {
