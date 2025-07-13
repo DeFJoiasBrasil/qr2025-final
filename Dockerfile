@@ -1,10 +1,10 @@
-FROM node:18-slim
+FROM node:18-bullseye
 
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
     fonts-liberation \
-    libappindicator1 \
+    libappindicator3-1 \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
@@ -25,11 +25,12 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     libgobject-2.0-0 \
     --no-install-recommends && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
 COPY . .
+
 RUN npm install
-EXPOSE 8080
-CMD ["npm", "start"]
+
+CMD ["node", "index.js"]
