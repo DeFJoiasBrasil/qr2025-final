@@ -1,15 +1,28 @@
+
+const axios = require('axios');
 const fs = require('fs');
-const { Configuration, OpenAIApi } = require('openai');
+const { Readable } = require('stream');
 
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(configuration);
+async function transcribeAudio(audioUrl) {
+  try {
+    const audio = await axios.get(audioUrl, { responseType: 'arraybuffer' });
 
-async function transcribeAudio(filePath) {
-  const file = fs.createReadStream(filePath);
-  const response = await openai.createTranscription(file, 'whisper-1');
-  return response.data.text;
+    const response = await axios.post(
+      'https://api.openai.com/v1/audio/transcriptions',
+      audio.data,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'audio/mpeg'
+        }
+      }
+    );
+
+    return response.data.text;
+  } catch (err) {
+    console.error("Erro ao transcrever áudio:", err.message);
+    return null;
+  }
 }
 
 module.exports = { transcribeAudio };
