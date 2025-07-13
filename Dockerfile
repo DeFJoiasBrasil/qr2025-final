@@ -1,6 +1,7 @@
+
 FROM node:18
 
-# Instalar dependências do sistema necessárias para Chromium
+# Instala bibliotecas necessárias para Puppeteer e FFmpeg
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -19,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
+    ffmpeg \
     --no-install-recommends && apt-get clean
 
 WORKDIR /app
