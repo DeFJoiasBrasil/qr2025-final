@@ -1,6 +1,5 @@
-FROM node:18-bullseye
+FROM node:18-slim
 
-# Instalar dependências necessárias ao Puppeteer
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -24,9 +23,7 @@ RUN apt-get update && apt-get install -y \
     libdrm2 \
     libgbm1 \
     libxshmfence1 \
-    libxkbcommon0 \
-    libgconf-2-4 \
-    libgtk-3-0 \
+    libgobject-2.0-0 \
     --no-install-recommends && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -34,4 +31,5 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 COPY . .
 RUN npm install
-CMD ["node", "index.js"]
+EXPOSE 8080
+CMD ["npm", "start"]
