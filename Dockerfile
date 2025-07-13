@@ -1,9 +1,9 @@
-
-FROM node:18-slim
+FROM node:18-bullseye
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Instala dependências do sistema para o puppeteer
+RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
     libasound2 \
@@ -24,7 +24,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgbm1 \
     libxshmfence1 \
     libgobject-2.0-0 \
-    --no-install-recommends && apt-get clean && rm -rf /var/lib/apt/lists/*
+    xdg-utils \
+    fonts-liberation \
+    --no-install-recommends && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
