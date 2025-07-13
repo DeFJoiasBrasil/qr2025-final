@@ -1,45 +1,67 @@
+const { create } = require('@open-wa/wa-automate');
 const express = require('express');
-const qrcodeTerminal = require('qrcode-terminal');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
 const path = require('path');
+const fs = require('fs');
+const { transcribeAudio } = require('./utils/transcribe');
+const { generateResponse } = require('./utils/openai');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-let qrCode = null;
+let clientInstance;
 
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    },
-});
+const promptBase = `
+Você é um atendente de vendas da D&F Joias, especialista em alianças feitas com ligas semelhantes às de moedas antigas. 
+Seu objetivo é conduzir o cliente com empatia, clareza e objetividade até o fechamento da venda.
+Informações importantes:
+- Você só deve falar sobre os modelos que estão no catálogo enviado.
+- As alianças não desbotam, não enferrujam e não descascam.
+- O atendimento é presencial nas cidades onde temos representantes, e por Correios nas demais.
+- Não mencione entrega nacional. Sempre pergunte o bairro e cidade antes de falar de entrega.
+- Se o cliente não souber a numeração, diga que levamos todos os tamanhos.
+- A caixinha é vendida separadamente. Só mencione se o cliente perguntar.
+- Fale de forma amigável e gentil, usando emojis quando apropriado.
+`;
 
-client.on('qr', (qr) => {
-    qrCode = qr;
-    console.log("✅ QR gerado. Acesse http://localhost:" + PORT + " para escanear.");
-    qrcodeTerminal.generate(qr, { small: true });
-});
+create({
+    qrTimeout: 0,
+    authTimeout: 0,
+    headless: true,
+    useChrome: false,
+    popup: true,
+    multiDevice: true
+}).then(client => {
+    clientInstance = client;
 
-client.on('ready', () => {
-    console.log("✅ WhatsApp conectado com sucesso!");
-});
+    client.onMessage(async message => {
+        if (message.body || message.mimetype) {
+            let prompt = "";
+            if (message.mimetype === "audio/ogg; codecs=opus") {
+                const mediaData = await client.decryptFile(message);
+                const filePath = `./audio-${message.id}.ogg`;
+                fs.writeFileSync(filePath, mediaData);
+                const text = await transcribeAudio(filePath);
+                fs.unlinkSync(filePath);
+                prompt = text;
+            } else {
+                prompt = message.body;
+            }
 
-client.initialize();
+            const resposta = await generateResponse(`${promptBase}
+Cliente: ${prompt}
+Atendente:`);
+            client.sendText(message.from, resposta);
+        }
+    });
+}).catch(err => console.error(err));
+
+// Exibe QR Code no navegador
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
 app.get('/', (req, res) => {
-    if (!qrCode) {
-        return res.send('QR ainda não gerado. Atualize em alguns segundos...');
-    }
-    res.send(`
-        <html>
-            <body style="text-align: center; font-family: sans-serif; margin-top: 50px;">
-                <h2>Escaneie o QR Code abaixo com seu WhatsApp:</h2>
-                <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrCode)}&size=300x300" />
-                <p>Depois de escanear, aguarde a conexão...</p>
-            </body>
-        </html>
-    `);
+    res.render('qr', { message: 'Escaneie o QR Code no terminal para conectar seu WhatsApp.' });
 });
 
 app.listen(PORT, () => {
