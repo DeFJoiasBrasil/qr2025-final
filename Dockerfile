@@ -1,13 +1,10 @@
-
+# Usa imagem base Node.js com suporte a Puppeteer
 FROM node:18-slim
 
-WORKDIR /app
+# Evita prompts interativos
+ENV DEBIAN_FRONTEND=noninteractive
 
-COPY package*.json ./
-RUN npm install
-
-COPY . .
-
+# Instala dependências essenciais para Chrome rodar
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -34,5 +31,17 @@ RUN apt-get update && apt-get install -y \
     --no-install-recommends && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Cria diretório da aplicação
+WORKDIR /app
+
+# Copia arquivos da aplicação
+COPY . .
+
+# Instala dependências do projeto
+RUN npm install
+
+# Expõe porta usada no Express
 EXPOSE 8080
+
+# Comando para iniciar a aplicação
 CMD ["npm", "start"]
