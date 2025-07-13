@@ -1,1 +1,17 @@
-// conteúdo simulado de package.json
+{
+  "name": "evolution-api-ia",
+  "version": "1.0.0",
+  "description": "Atendente IA para responder apenas áudios no WhatsApp",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@evolutionapi/evolution-node": "^1.0.0",
+    "axios": "^1.6.8",
+    "dotenv": "^16.3.1",
+    "express": "^4.19.2",
+    "fs": "^0.0.1-security",
+    "openai": "^4.25.0"
+  }
+}
