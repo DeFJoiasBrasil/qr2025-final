@@ -1,19 +1,10 @@
-// index.js
 require('dotenv').config();
 const express = require('express');
 const { transcribeAudio } = require('./utils/transcribe');
 const { createOpenAI } = require('openai');
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode');
-const path = require('path');
-const ejs = require('ejs');
 
 const app = express();
 app.use(express.json());
-
-// Configuração do EJS
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
 
 const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -34,7 +25,6 @@ Fale com leveza, simpatia, segurança e sempre conduza o cliente até a decisão
 Use emojis quando necessário. Responda como se fosse humano.
 `;
 
-// Webhook de atendimento com IA
 app.post('/webhook', async (req, res) => {
     const { message, isAudio } = req.body;
 
@@ -59,34 +49,6 @@ app.post('/webhook', async (req, res) => {
         console.error("Erro no atendimento:", error.message);
         res.status(500).json({ error: "Erro ao processar mensagem" });
     }
-});
-
-// Integração com WhatsApp para QR Code
-let qrCodeImageUrl = null;
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
-});
-
-client.on('qr', async (qr) => {
-    qrCodeImageUrl = await qrcode.toDataURL(qr);
-    console.log('✅ QR gerado. Acesse / para escanear.');
-});
-
-client.on('ready', () => {
-    console.log('✅ WhatsApp conectado com sucesso!');
-});
-
-client.initialize();
-
-// Rota para ver o QR Code
-app.get('/', (req, res) => {
-    if (!qrCodeImageUrl) {
-        return res.send('⏳ Aguarde... gerando QR Code.');
-    }
-    res.render('qr', { imageUrl: qrCodeImageUrl });
 });
 
 const PORT = process.env.PORT || 8080;
